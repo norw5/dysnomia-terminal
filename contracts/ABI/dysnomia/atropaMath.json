@@ -1,0 +1,110 @@
+[
+  {
+    "inputs": [],
+    "name": "MotzkinPrime",
+    "outputs": [
+      {
+        "internalType": "uint64",
+        "name": "",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "Random",
+    "outputs": [
+      {
+        "internalType": "uint64",
+        "name": "",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "a",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "b",
+        "type": "address"
+      }
+    ],
+    "name": "hashWith",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_b",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_e",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_m",
+        "type": "uint256"
+      }
+    ],
+    "name": "modExp",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint64",
+        "name": "_b",
+        "type": "uint64"
+      },
+      {
+        "internalType": "uint64",
+        "name": "_e",
+        "type": "uint64"
+      },
+      {
+        "internalType": "uint64",
+        "name": "_m",
+        "type": "uint64"
+      }
+    ],
+    "name": "modExp64",
+    "outputs": [
+      {
+        "internalType": "uint64",
+        "name": "",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  }
+]

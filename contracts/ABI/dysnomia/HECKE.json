@@ -1,0 +1,64 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "Waat",
+        "type": "uint256"
+      }
+    ],
+    "name": "Compliment",
+    "outputs": [
+      {
+        "internalType": "int256",
+        "name": "Longitude",
+        "type": "int256"
+      },
+      {
+        "internalType": "int256",
+        "name": "Latitude",
+        "type": "int256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "Waat",
+        "type": "uint256"
+      }
+    ],
+    "name": "GetMeridian",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "Meridian",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "idx",
+        "type": "uint256"
+      }
+    ],
+    "name": "Meridians",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "Meridian",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]

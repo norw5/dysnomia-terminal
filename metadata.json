@@ -1,0 +1,5 @@
+{
+  "name": "Dysnomia Terminal NG",
+  "description": "A cypherpunk control center for the Dysnomia ecosystem on PulseChain. Features QING map, Chat, Contract Studio, and an AI for guidance.",
+  "requestFramePermissions": []
+}

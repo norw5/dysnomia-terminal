@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
 import { Interface, id } from 'ethers';
 import { Web3Service } from '../services/web3Service';
 import { ChatMessage, LogEntry } from '../types';
@@ -101,6 +101,7 @@ const VoidChat: React.FC<VoidChatProps> = ({ web3, viewAddress, lauArea, lauAddr
   const abortControllerRef = useRef<AbortController | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const initialLoadRef = useRef<boolean>(true);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
 
   const currentPhysArea = lauArea || ADDRESSES.VOID;
@@ -110,17 +111,70 @@ const VoidChat: React.FC<VoidChatProps> = ({ web3, viewAddress, lauArea, lauAddr
   const handleScroll = () => {
       if (!containerRef.current) return;
       const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
+      
+      if (!initialLoadRef.current && segments.length > 0) {
+          localStorage.setItem(`scroll_${viewAddress}`, scrollTop.toString());
+      }
+      
       const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
       setShowScrollToBottom(!isNearBottom);
   };
 
   useEffect(() => {
+      if (!containerRef.current) return;
+      
+      if (initialLoadRef.current && segments.length > 0) {
+          // Immediately set scroll based on stored value or bottom
+          const savedScroll = localStorage.getItem(`scroll_${viewAddress}`);
+          
+          const applyScroll = () => {
+              if (!containerRef.current) return;
+              
+              if (savedScroll !== null) {
+                  containerRef.current.scrollTop = parseInt(savedScroll, 10);
+              } else if (messagesEndRef.current) {
+                  // If no saved state, use scrollIntoView which is much more reliable
+                  // for dynamic content than measuring scrollHeight.
+                  messagesEndRef.current.scrollIntoView({ behavior: 'auto' });
+              }
+              
+              const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
+              const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
+              setShowScrollToBottom(!isNearBottom);
+          };
+          
+          applyScroll();
+          
+          // Re-apply it after a tiny delay in case rendering was still happening (e.g. images or complex layout)
+          // In Safari and Firefox, occasionally a single requestAnimationFrame isn't enough to capture layout shifts.
+          // Using a slight delay gives the browser time to paint, and using double-RAF ensures layout is settled.
+          setTimeout(() => {
+              requestAnimationFrame(() => {
+                  requestAnimationFrame(applyScroll);
+              });
+          }, 200);
+          
+          // We hold the flag until the layout is genuinely painted and scroll applied.
+          setTimeout(() => {
+              initialLoadRef.current = false;
+          }, 250);
+      }
+  }, [segments, viewAddress]);
+
+  useEffect(() => {
       // Re-evaluate scroll position when segments update (e.g. initial load)
-      handleScroll();
+      if (!initialLoadRef.current) {
+          requestAnimationFrame(() => handleScroll());
+      }
   }, [segments]);
 
   const scrollToBottom = () => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      if (messagesEndRef.current) {
+          messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+          setTimeout(() => {
+              handleScroll();
+          }, 300); // Allow time for smooth scroll to finish
+      }
   };
 
   const getLogConfig = useCallback(() => {
@@ -224,6 +278,7 @@ const VoidChat: React.FC<VoidChatProps> = ({ web3, viewAddress, lauArea, lauAddr
   };
   useEffect(() => {
     if (!web3 || !viewAddress) return;
+    initialLoadRef.current = true;
     setSegments([]);
 
     const init = async () => {
@@ -457,6 +512,11 @@ const VoidChat: React.FC<VoidChatProps> = ({ web3, viewAddress, lauArea, lauAddr
       const currentBlock = await web3.getProvider().getBlockNumber();
       await fetchChunk(currentBlock - 5, currentBlock);
       await rebuildSegments();
+      setTimeout(() => {
+          if(containerRef.current) {
+               containerRef.current.scrollTop = containerRef.current.scrollHeight;
+          }
+      }, 50);
 
     } catch (err: any) {
       addLog({ id: Date.now().toString(), timestamp: new Date().toLocaleTimeString(), type: 'ERROR', message: 'Transmission Failed', details: web3.parseError(err) });

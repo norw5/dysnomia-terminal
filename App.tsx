@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { formatUnits, ZeroAddress } from 'ethers';
 import { Web3Service } from './services/web3Service';
 import { AppView, LogEntry, UserContext, ContractInteractionRequest } from './types';
-import { ADDRESSES, DEFAULT_RPC_URL, GEMINI_MODELS, MAP_ABI, QING_ABI, CHO_ABI, CHAN_ABI } from './constants';
+import { ADDRESSES, DEFAULT_RPC_URL, GEMINI_MODELS, MAP_ABI, QING_ABI, CHO_ABI, CHAN_ABI, LAU_ABI } from './constants';
 import { Persistence, SectorData } from './services/persistenceService';
 
 // Components

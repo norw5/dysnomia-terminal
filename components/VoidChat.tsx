@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Interface, id } from 'ethers';
 import { Web3Service } from '../services/web3Service';
 import { ChatMessage, LogEntry } from '../types';
@@ -99,17 +99,29 @@ const VoidChat: React.FC<VoidChatProps> = ({ web3, viewAddress, lauArea, lauAddr
   const [hideEvents, setHideEvents] = useState(true); // Default to Hidden
   
   const abortControllerRef = useRef<AbortController | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  
-  const prevScrollHeightRef = useRef<number>(0);
-  const prevScrollTopRef = useRef<number>(0);
-  const wasAtBottomRef = useRef<boolean>(true); 
-  const initialLoadRef = useRef<boolean>(true);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
 
   const currentPhysArea = lauArea || ADDRESSES.VOID;
   const inSync = viewAddress.toLowerCase() === currentPhysArea.toLowerCase();
   const isVoid = viewAddress.toLowerCase() === ADDRESSES.VOID.toLowerCase();
+
+  const handleScroll = () => {
+      if (!containerRef.current) return;
+      const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
+      const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
+      setShowScrollToBottom(!isNearBottom);
+  };
+
+  useEffect(() => {
+      // Re-evaluate scroll position when segments update (e.g. initial load)
+      handleScroll();
+  }, [segments]);
+
+  const scrollToBottom = () => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
 
   const getLogConfig = useCallback(() => {
     // Determine source contract and ABI
@@ -154,22 +166,6 @@ const VoidChat: React.FC<VoidChatProps> = ({ web3, viewAddress, lauArea, lauAddr
   };
 
   const rebuildSegments = async () => {
-      if (containerRef.current) {
-          const { scrollHeight, scrollTop, clientHeight } = containerRef.current;
-          prevScrollHeightRef.current = scrollHeight;
-          prevScrollTopRef.current = scrollTop;
-          
-          const isScrollable = scrollHeight > clientHeight + 10;
-          if (!isScrollable) {
-              wasAtBottomRef.current = true;
-          } else {
-              const dist = scrollHeight - scrollTop - clientHeight;
-              wasAtBottomRef.current = dist < 50;
-          }
-      } else {
-          wasAtBottomRef.current = true;
-      }
-
       const savedMsgs = await Persistence.getMessages(viewAddress, 10000); 
       const meta = await Persistence.getChannelMeta(viewAddress);
       
@@ -226,48 +222,9 @@ const VoidChat: React.FC<VoidChatProps> = ({ web3, viewAddress, lauArea, lauAddr
       setSegments(newSegments);
       if (onChunkLoaded) onChunkLoaded();
   };
-
-  useLayoutEffect(() => {
-      if (!containerRef.current) return;
-      const container = containerRef.current;
-
-      if (initialLoadRef.current && segments.length > 0) {
-          const savedScroll = sessionStorage.getItem(`scroll_${viewAddress}`);
-          if (savedScroll) {
-              container.scrollTop = parseInt(savedScroll);
-          } else {
-              container.scrollTop = container.scrollHeight;
-          }
-          initialLoadRef.current = false;
-          return;
-      }
-
-      if (wasAtBottomRef.current) {
-          container.scrollTop = container.scrollHeight;
-      } else {
-          const heightDiff = container.scrollHeight - prevScrollHeightRef.current;
-          if (heightDiff > 0 && prevScrollTopRef.current < 100) {
-               container.scrollTop = prevScrollTopRef.current + heightDiff;
-          }
-      }
-  }, [segments, viewAddress]);
-
-  const handleScroll = () => {
-      if (!containerRef.current) return;
-      const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
-      sessionStorage.setItem(`scroll_${viewAddress}`, scrollTop.toString());
-      
-      const dist = scrollHeight - scrollTop - clientHeight;
-      const isNearBottom = dist < 50;
-      if (isNearBottom) wasAtBottomRef.current = true;
-      else wasAtBottomRef.current = false;
-  };
-
   useEffect(() => {
     if (!web3 || !viewAddress) return;
-    initialLoadRef.current = true; 
-    setSegments([]); 
-    wasAtBottomRef.current = true; 
+    setSegments([]);
 
     const init = async () => {
         await rebuildSegments();
@@ -300,7 +257,6 @@ const VoidChat: React.FC<VoidChatProps> = ({ web3, viewAddress, lauArea, lauAddr
 
   useEffect(() => {
       if (refreshTrigger) {
-          wasAtBottomRef.current = true;
           rebuildSegments();
       }
   }, [refreshTrigger]);
@@ -499,7 +455,6 @@ const VoidChat: React.FC<VoidChatProps> = ({ web3, viewAddress, lauArea, lauAddr
       await web3.waitForReceipt(tx);
       
       const currentBlock = await web3.getProvider().getBlockNumber();
-      wasAtBottomRef.current = true; // Force scroll on send
       await fetchChunk(currentBlock - 5, currentBlock);
       await rebuildSegments();
 
@@ -645,9 +600,18 @@ const VoidChat: React.FC<VoidChatProps> = ({ web3, viewAddress, lauArea, lauAddr
 
             </React.Fragment>
         ))}
-        
         <div ref={messagesEndRef} />
       </div>
+
+      {showScrollToBottom && (
+          <button
+              onClick={scrollToBottom}
+              className="absolute bottom-16 right-6 bg-dys-panel border border-dys-border text-dys-cyan hover:bg-dys-cyan hover:text-black px-3 py-1 font-mono text-xs shadow-lg transition-colors z-20"
+              title="Scroll to latest"
+          >
+              ↓ NEW MESSAGES
+          </button>
+      )}
 
       {/* Input */}
       <div className="p-2 bg-dys-panel border-t border-dys-border z-10 shrink-0">

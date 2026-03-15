@@ -11,7 +11,8 @@ export enum AppView {
   CONTRACT_STUDIO = 'CONTRACT_STUDIO',
   SETTINGS = 'SETTINGS',
   QING = 'QING',
-  DATA_IO = 'DATA_IO'
+  DATA_IO = 'DATA_IO',
+  SECURE_COMMS = 'SECURE_COMMS'
 }
 
 export interface LogEntry {
@@ -59,7 +60,10 @@ export interface ChatMessage {
   sender: string;
   username?: string;
   content: string;
+  message: string;
+  type: string; // The type field serves as the sender's Soul ID
   timestamp: number;
+  channelParams?: any;
   blockNumber: number;
   isMe: boolean;
 }
@@ -80,4 +84,11 @@ export interface PowerTokenData {
     balanceLau: string;
     balanceYue: string;
     strategicTarget: 'LAU' | 'YUE' | 'ANY'; // Where it "should" be
+}
+
+export interface Contact {
+    address: string;
+    soulId: string;
+    username: string;
+    pubKey?: string;
 }

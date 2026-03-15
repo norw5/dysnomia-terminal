@@ -2,7 +2,8 @@
 import { InterfaceAbi } from "ethers";
 
 // Default PulseChain RPC
-export const DEFAULT_RPC_URL = "https://rpc.pulsechain.com";
+// Using alternative reliable RPC provided by user to avoid rate limits/overloads
+export const DEFAULT_RPC_URL = "https://rpc.pulsechainstats.com";
 
 export const GEMINI_MODELS = [
     'gemini-2.5-flash-preview-09-2025',
@@ -225,6 +226,17 @@ export const DYSNOMIA_ABIS: Record<string, any[]> = {
     "function totalSupply() view returns (uint256)",
     "function transfer(address to, uint256 value) returns (bool)",
     "function transferFrom(address from, address to, uint256 value) returns (bool)"
+  ],
+  ENCRYPT: [
+    "function Encapsulate(tuple(uint64 Soul, tuple(address Phi, address Mu, uint64 Xi, uint64 Pi, address Shio, uint64 Ring, uint64 Omicron, uint64 Omega) On, string Username, uint64 Entropy) From, uint64 Gamma, uint64 Rho, uint64 Upsilon, uint64 Ohm) returns (uint64 Entropy, bytes Geng)",
+    "function Encrypt(uint64 From, uint64 to, string Key, string Data) returns (uint64 index)",
+    "function Encrypt(uint64 From, uint64 to, bytes Key, bytes Data) returns (uint64 index)",
+    "function Decrypt(uint64 From, uint64 to, uint64 Index, string Key) returns (bytes)",
+    "function Decrypt(uint64 From, uint64 to, uint64 Index, bytes Key) returns (bytes result)",
+    "function Prune()",
+    "function Saat(bytes Geng) pure returns (uint64[3])",
+    "function Type() view returns (string)",
+    "function hashKey(bytes Key) returns (uint64 result)"
   ],
   QING: [
     "function AddMarketRate(address Contract, uint256 Rate)",

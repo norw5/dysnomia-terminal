@@ -2,7 +2,7 @@
 import { ChatMessage } from '../types';
 
 const DB_NAME = 'DysnomiaDB';
-const DB_VERSION = 3; // Incremented for schema updates
+const DB_VERSION = 4; // Incremented for schema updates
 
 export interface SectorData {
     address: string;
@@ -90,6 +90,10 @@ class PersistenceService {
                     const lauStore = db.createObjectStore('laus', { keyPath: 'address' });
                     lauStore.createIndex('owner', 'owner', { unique: false });
                     lauStore.createIndex('timestamp', 'timestamp', { unique: false });
+                }
+
+                if (!db.objectStoreNames.contains('contacts')) {
+                    db.createObjectStore('contacts', { keyPath: 'soulId' });
                 }
             };
         });
@@ -242,6 +246,48 @@ class PersistenceService {
             const request = tx.objectStore('laus').get(address.toLowerCase());
             request.onsuccess = () => resolve(request.result);
             request.onerror = () => reject(request.error);
+        });
+    }
+
+    // --- CONTACT MANAGEMENT ---
+
+    async saveContact(contact: import('../types').Contact): Promise<void> {
+        const db = await this.init();
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction('contacts', 'readwrite');
+            tx.objectStore('contacts').put(contact);
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+        });
+    }
+
+    async getAllContacts(): Promise<import('../types').Contact[]> {
+        const db = await this.init();
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction('contacts', 'readonly');
+            const request = tx.objectStore('contacts').getAll();
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+        });
+    }
+
+    async getContact(soulId: string): Promise<import('../types').Contact | undefined> {
+        const db = await this.init();
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction('contacts', 'readonly');
+            const request = tx.objectStore('contacts').get(soulId);
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+        });
+    }
+
+    async deleteContact(soulId: string): Promise<void> {
+        const db = await this.init();
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction('contacts', 'readwrite');
+            tx.objectStore('contacts').delete(soulId);
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
         });
     }
 

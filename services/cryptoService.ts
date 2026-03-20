@@ -1,9 +1,12 @@
 // services/cryptoService.ts
 
 // Web Crypto API Wrapper for ECDH + AES-GCM Encrypted DMs
+// + OpenPGP for RSA/ECC Asymmetric Encrypted DMs
+import * as openpgp from 'openpgp';
 
 export class CryptoService {
     private static keyStorePrefix = 'dys_priv_key';
+    private static pgpKeyStorePrefix = 'dys_pgp_priv_key';
 
     /**
      * Internal: Derive an AES-GCM key from an ECDH shared secret
@@ -61,6 +64,20 @@ export class CryptoService {
             true,
             ["deriveKey", "deriveBits"]
         );
+    }
+
+    static getECDHPrivateKeyString(soulId: string): string | null {
+        return localStorage.getItem(`${this.keyStorePrefix}_${soulId}`);
+    }
+
+    static importECDHPrivateKey(soulId: string, jwkStr: string): boolean {
+        try {
+            JSON.parse(jwkStr);
+            localStorage.setItem(`${this.keyStorePrefix}_${soulId}`, jwkStr);
+            return true;
+        } catch (e) {
+            return false;
+        }
     }
 
     /**
@@ -126,6 +143,35 @@ export class CryptoService {
             console.error("Encryption failed:", error);
             return null;
         }
+    }
+
+    /**
+     * Derive the public key (Base64 SPKI) from a stored private key for a Soul ID
+     */
+    static async getPublicKey(soulId: string): Promise<string | null> {
+        const privKey = await this.getPrivateKey(soulId);
+        if (!privKey) return null;
+
+        // Since Web Crypto doesn't let us directly export a 'public' part from a 'private' CryptoKey easily
+        // We actually have to export the private key as JWK, strip the private components, and re-import/export
+        // Or simpler: The user already has the JWK in localStorage. We can just import and then export as SPKI.
+        const jwkStr = localStorage.getItem(`${this.keyStorePrefix}_${soulId}`);
+        if (!jwkStr) return null;
+        const jwk = JSON.parse(jwkStr);
+        
+        // Ensure it's treated as a public key for export
+        const { d, ...publicJwk } = jwk; 
+        
+        const pubKey = await crypto.subtle.importKey(
+            "jwk",
+            publicJwk,
+            { name: "ECDH", namedCurve: "P-256" },
+            true,
+            []
+        );
+        
+        const pubSpki = await crypto.subtle.exportKey("spki", pubKey);
+        return this.arrayBufferToBase64(pubSpki);
     }
 
     /**
@@ -214,6 +260,120 @@ export class CryptoService {
         } catch (error) {
             console.warn("Decryption failed:", error);
             return null;
+        }
+    }
+
+    // --- PGP / OpenPGP Methods ---
+
+    /**
+     * Generate new OpenPGP Key Pair (RSA or ECC).
+     * Stores the armored private key in localStorage and returns the armored public key.
+     */
+    static async generatePGPKeyPair(soulId: string, name: string = 'Soul', email: string = 'soul@dysnomia.local', type: 'rsa' | 'ecc' = 'rsa'): Promise<string> {
+        let keyOptions: any = {
+            userIDs: [{ name, email }],
+            format: 'armored'
+        };
+
+        if (type === 'rsa') {
+            keyOptions.type = 'rsa';
+            keyOptions.rsaBits = 4096; // 4096-bit RSA keys requested by user
+        } else {
+            keyOptions.type = 'ecc';
+            keyOptions.curve = 'curve25519';
+        }
+
+        const { privateKey, publicKey } = await openpgp.generateKey(keyOptions);
+        
+        // Save private key
+        localStorage.setItem(`${this.pgpKeyStorePrefix}_${soulId}`, privateKey as string);
+        
+        return publicKey as string;
+    }
+
+    static async importPGPPrivateKey(soulId: string, armoredKey: string): Promise<boolean> {
+        try {
+            await openpgp.readPrivateKey({ armoredKey }); // Validate format
+            localStorage.setItem(`${this.pgpKeyStorePrefix}_${soulId}`, armoredKey);
+            return true;
+        } catch (e) {
+            console.error("Invalid PGP Private Key format", e);
+            return false;
+        }
+    }
+
+    static getPGPPrivateKeyString(soulId: string): string | null {
+        return localStorage.getItem(`${this.pgpKeyStorePrefix}_${soulId}`);
+    }
+
+    /**
+     * Get the stored PGP private key for a given Soul ID
+     */
+    static async getPGPPrivateKey(soulId: string): Promise<openpgp.PrivateKey | null> {
+        const privStr = this.getPGPPrivateKeyString(soulId);
+        if (!privStr) return null;
+
+        try {
+            return await openpgp.readPrivateKey({ armoredKey: privStr });
+        } catch (e) {
+            console.warn("Failed to parse private key from storage", e);
+            return null;
+        }
+    }
+
+    static hasPGPPrivateKey(soulId: string): boolean {
+        return !!localStorage.getItem(`${this.pgpKeyStorePrefix}_${soulId}`);
+    }
+
+    /**
+     * Extract a public key in armored format from a stored private key
+     */
+    static async getPGPPublicKey(soulId: string): Promise<string | null> {
+        const privStr = this.getPGPPrivateKeyString(soulId);
+        if (!privStr) return null;
+        try {
+            const privKey = await openpgp.readPrivateKey({ armoredKey: privStr });
+            return privKey.toPublic().armor();
+        } catch (e) {
+            return null;
+        }
+    }
+
+    /**
+     * Encrypt a message using a recipient's Armored PGP Public Key
+     */
+    static async encryptPGPMessage(recipientPubKeyArmored: string, plaintext: string): Promise<string | null> {
+        try {
+            const pubKey = await openpgp.readKey({ armoredKey: recipientPubKeyArmored });
+            const message = await openpgp.createMessage({ text: plaintext });
+            const encrypted = await openpgp.encrypt({
+                message,
+                encryptionKeys: pubKey,
+                format: 'armored'
+            });
+            return encrypted as string;
+        } catch (e) {
+            console.error("PGP Encryption failed:", e);
+            return null;
+        }
+    }
+
+    /**
+     * Decrypt a PGP message addressed to the user
+     */
+    static async decryptPGPMessage(mySoulId: string, armoredCiphertext: string): Promise<string | null> {
+        try {
+            const myPrivKey = await this.getPGPPrivateKey(mySoulId);
+            if (!myPrivKey) throw new Error("PGP Private key not found locally");
+
+            const message = await openpgp.readMessage({ armoredMessage: armoredCiphertext });
+            const { data: decrypted } = await openpgp.decrypt({
+                message,
+                decryptionKeys: myPrivKey
+            });
+            return decrypted as string;
+        } catch (e) {
+            return null; // Silent catch, often expected for anonymous trials
         }
     }
 

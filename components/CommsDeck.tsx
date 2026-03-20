@@ -1,11 +1,13 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { UserContext, LogEntry } from '../types';
 import { Web3Service } from '../services/web3Service';
 import { ADDRESSES, QING_ABI, LAU_ABI, ERC20_ABI, CHO_ABI } from '../constants';
 import { Persistence, SectorData } from '../services/persistenceService';
+import { CryptoService } from '../services/cryptoService';
 import VoidChat from './VoidChat';
 import SecureChat from './SecureChat';
+import KeyManager from './KeyManager';
 import { ZeroAddress, formatUnits } from 'ethers';
 import { Contact } from '../types';
 import SoulSigil from './SoulSigil';
@@ -29,6 +31,7 @@ const CommsDeck: React.FC<CommsDeckProps> = ({ user, web3, addLog, setUser, onVi
   const [activeContactId, setActiveContactId] = useState<string>(() => {
       return sessionStorage.getItem('dys_selected_contact') || '';
   });
+  const [showKeyManager, setShowKeyManager] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'CHANNELS' | 'CONTACTS'>('CHANNELS');
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -76,6 +79,16 @@ const CommsDeck: React.FC<CommsDeckProps> = ({ user, web3, addLog, setUser, onVi
           if (activeContactId) {
               setAccessState('SECURE');
               sessionStorage.setItem('dys_selected_contact', activeContactId);
+
+              // Check if user has ANY cryptographic keys. If not, auto-open Key Manager.
+              const mySoul = user.saat?.soul;
+              if (mySoul) {
+                  const hasPGP = CryptoService.hasPGPPrivateKey(mySoul);
+                  const hasECDH = CryptoService.hasPrivateKey(mySoul);
+                  if (!hasPGP && !hasECDH) {
+                      setShowKeyManager(true);
+                  }
+              }
           }
           return;
       }
@@ -202,9 +215,10 @@ const CommsDeck: React.FC<CommsDeckProps> = ({ user, web3, addLog, setUser, onVi
       c.address.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleViewIdentityLocal = (id: string) => {
+  const handleViewIdentityLocal = useCallback((id: string) => {
+      console.log("test")
       setSelectedSidebarUser(id);
-  };
+  }, []);
 
   useEffect(() => {
       if (!selectedSidebarUser || !web3) {
@@ -295,15 +309,23 @@ const CommsDeck: React.FC<CommsDeckProps> = ({ user, web3, addLog, setUser, onVi
                         {user.mapSync.isScanning ? `SCANNING [${user.mapSync.progress}]` : 'SCAN FREQUENCIES'}
                     </button>
                 ) : (
-                    <div className="mt-3 flex gap-2">
-                        <input
-                            type="text"
-                            placeholder="Soul ID..."
-                            className="w-full bg-black border border-dys-border p-1 text-[10px] text-dys-green outline-none font-mono"
-                            value={newContactId}
-                            onChange={e => setNewContactId(e.target.value)}
-                        />
-                        <button onClick={handleAddContact} disabled={loading || !newContactId} className="bg-dys-green/20 text-dys-green hover:bg-dys-green hover:text-black px-2 py-1 text-[10px] font-bold border border-dys-green transition-colors">ADD</button>
+                    <div className="mt-3 flex flex-col gap-2">
+                        <div className="flex gap-2">
+                            <input
+                                type="text"
+                                placeholder="Soul ID..."
+                                className="w-full bg-black border border-dys-border p-1 text-[10px] text-dys-green outline-none font-mono"
+                                value={newContactId}
+                                onChange={e => setNewContactId(e.target.value)}
+                            />
+                            <button onClick={handleAddContact} disabled={loading || !newContactId} className="bg-dys-green/20 text-dys-green hover:bg-dys-green hover:text-black px-2 py-1 text-[10px] font-bold border border-dys-green transition-colors">ADD</button>
+                        </div>
+                        <button 
+                            onClick={() => setShowKeyManager(true)} 
+                            className={`w-full py-1 text-[10px] font-bold border transition-colors ${showKeyManager ? 'bg-dys-cyan text-black border-dys-cyan' : 'border-dys-cyan/50 text-dys-cyan hover:bg-dys-cyan hover:text-black'}`}
+                        >
+                            KEY MANAGER
+                        </button>
                     </div>
                 )}
             </div>
@@ -313,12 +335,11 @@ const CommsDeck: React.FC<CommsDeckProps> = ({ user, web3, addLog, setUser, onVi
                     const isActive = c.address === activeChannelAddr;
                     const isLoc = user.currentArea && user.currentArea.toLowerCase() === c.address.toLowerCase();
                     return (
-                        <button 
+                        <button
                             key={c.address}
-                            onClick={() => setActiveChannelAddr(c.address)}
+                            onClick={() => { setActiveChannelAddr(c.address); setShowKeyManager(false); }}
                             className={`w-full text-left p-3 border-l-2 text-xs font-mono transition-all flex justify-between items-center ${
-                                isActive 
-                                ? 'border-dys-cyan bg-dys-cyan/10 text-white' 
+                                isActive && !showKeyManager                                ? 'border-dys-cyan bg-dys-cyan/10 text-white' 
                                 : 'border-transparent text-gray-500 hover:text-gray-300 hover:bg-white/5'
                             }`}
                         >
@@ -332,12 +353,11 @@ const CommsDeck: React.FC<CommsDeckProps> = ({ user, web3, addLog, setUser, onVi
                 }) : contacts.filter(c => c.username.toLowerCase().includes(searchQuery.toLowerCase()) || c.soulId.includes(searchQuery)).map(c => {
                     const isActive = c.soulId === activeContactId;
                     return (
-                        <button 
+                        <button
                             key={c.soulId}
-                            onClick={() => setActiveContactId(c.soulId)}
+                            onClick={() => { setActiveContactId(c.soulId); setShowKeyManager(false); }}
                             className={`w-full text-left p-3 border-l-2 text-xs font-mono transition-all flex justify-between items-center ${
-                                isActive 
-                                ? 'border-dys-green bg-dys-green/10 text-white' 
+                                isActive && !showKeyManager                                ? 'border-dys-green bg-dys-green/10 text-white' 
                                 : 'border-transparent text-gray-500 hover:text-gray-300 hover:bg-white/5'
                             }`}
                         >
@@ -394,7 +414,14 @@ const CommsDeck: React.FC<CommsDeckProps> = ({ user, web3, addLog, setUser, onVi
             {/* Chat Area */}
             <div className="flex-1 relative overflow-hidden flex">
                 <div className="flex-1 relative">
-                    {activeAccessIsSecure() ? (() => {
+                    {showKeyManager ? (
+                        <KeyManager
+                            web3={web3!}
+                            user={user}
+                            addLog={addLog}
+                            onClose={() => setShowKeyManager(false)}
+                        />
+                    ) : activeAccessIsSecure() ? (() => {
                             const activeContact = contacts.find(c => c.soulId === activeContactId);
                             return (
                                 <SecureChat 
@@ -421,9 +448,9 @@ const CommsDeck: React.FC<CommsDeckProps> = ({ user, web3, addLog, setUser, onVi
                     )}
                 </div>
 
-                {/* Inline User Sidebar */}
+                {/* Inline User Sidebar - Now Absolute to prevent layout shifting and overlap issues */}
                 {selectedSidebarUser && (
-                    <div className="w-64 bg-dys-panel border-l border-dys-border flex flex-col z-20 animate-fade-in shrink-0">
+                    <div className="absolute right-0 top-0 bottom-0 w-64 bg-dys-panel border-l border-dys-border flex flex-col z-50 animate-fade-in shadow-2xl">
                         <div className="p-4 border-b border-dys-border flex justify-between items-center bg-black/50">
                             <div className="font-bold text-dys-cyan text-[10px] tracking-widest">USER_PROFILE</div>
                             <button onClick={() => setSelectedSidebarUser(null)} className="text-gray-500 hover:text-white transition-colors">✕</button>

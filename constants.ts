@@ -99,6 +99,8 @@ export const ADDRESSES: Record<string, string> = {
   //CHATLOG_SHIO: "0x27242c1605e557224259b977755b46b29f032213" // Fomalhaute/ZHOU SHIO // This address seems to be wrong - keep it out for now
 };
 
+export const SHIO_GLOBAL = "SHIO_GLOBAL";
+
 // ---------------------------------------------------------------------------
 // FULL ABI REGISTRY (Consolidated)
 // ---------------------------------------------------------------------------

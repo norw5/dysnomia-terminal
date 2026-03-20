@@ -310,7 +310,7 @@ class PersistenceService {
         });
     }
 
-    async getMessages(tokenAddress: string, limit: number = 500): Promise<ChatMessage[]> {
+    async getMessages(tokenAddress: string, limit: number = 500, filterFn?: (msg: ChatMessage) => boolean): Promise<ChatMessage[]> {
         const db = await this.init();
         const addr = tokenAddress.toLowerCase();
         
@@ -326,7 +326,10 @@ class PersistenceService {
             request.onsuccess = (event) => {
                 const cursor = (event.target as IDBRequest).result;
                 if (cursor && results.length < limit) {
-                    results.push(cursor.value);
+                    const msg = cursor.value;
+                    if (!filterFn || filterFn(msg)) {
+                        results.push(msg);
+                    }
                     cursor.continue();
                 } else {
                     resolve(results.reverse());

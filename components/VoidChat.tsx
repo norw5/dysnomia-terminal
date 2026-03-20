@@ -3,8 +3,9 @@ import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from
 import { Interface, id } from 'ethers';
 import { Web3Service } from '../services/web3Service';
 import { ChatMessage, LogEntry, UserContext } from '../types';
-import { VOID_ABI, LAU_ABI, QING_ABI, ADDRESSES, MAP_ABI } from '../constants';
+import { VOID_ABI, LAU_ABI, QING_ABI, ADDRESSES, MAP_ABI, SHIO_GLOBAL } from '../constants';
 import { Persistence } from '../services/persistenceService';
+import { CryptoService } from '../services/cryptoService';
 
 interface VoidChatProps {
   web3: Web3Service;
@@ -48,11 +49,54 @@ const VoidChat: React.FC<VoidChatProps> = ({ web3, viewAddress, lauArea, lauAddr
   const [fetchingGap, setFetchingGap] = useState<{start: number, end: number} | null>(null);
   const [channelName, setChannelName] = useState('LOADING...');
   const [hideEvents, setHideEvents] = useState(true);
+  const [decryptedMessages, setDecryptedMessages] = useState<Record<string, { status: 'decrypted' | 'error' | 'ciphertext', content?: string }>>({});
 
   const mySoulIdStr = user.saat?.soul || "";
-  
-  const abortControllerRef = useRef<AbortController | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+
+  const handleDecrypt = async (msg: ChatMessage) => {
+      const content = msg.content;
+      let payload = content;
+
+      const dmTagIdx = content.indexOf('[DM:');
+      if (dmTagIdx >= 0) {
+          const closeIdx = content.indexOf(']', dmTagIdx);
+          if (closeIdx > 0) {
+              payload = content.substring(closeIdx + 1).trim();
+          }
+      } else if (content.includes('-----BEGIN PGP MESSAGE-----')) {
+           const start = content.indexOf('-----BEGIN PGP MESSAGE-----');
+           const end = content.indexOf('-----END PGP MESSAGE-----');
+           if (start >= 0 && end > start) {
+               payload = content.substring(start, end + 25).trim();
+           }
+      }
+
+      try {
+          // Check local cache for our own sent messages using TX Hash
+          if (msg.isMe) {
+              const txHash = msg.id.split('-')[0];
+              const cached = localStorage.getItem(`pgp_clear_${txHash}`);
+              if (cached) {
+                  setDecryptedMessages(prev => ({ ...prev, [msg.id]: { status: 'decrypted', content: cached } }));
+                  return;
+              }
+          }
+
+          const dec = await CryptoService.decryptPGPMessage(mySoulIdStr, payload);
+          if (dec) {
+              setDecryptedMessages(prev => ({ ...prev, [msg.id]: { status: 'decrypted', content: dec } }));
+              addLog({ id: Date.now().toString(), timestamp: new Date().toLocaleTimeString(), type: 'INFO', message: `Message decrypted.` });
+          } else {
+              setDecryptedMessages(prev => ({ ...prev, [msg.id]: { status: 'error' } }));
+              addLog({ id: Date.now().toString(), timestamp: new Date().toLocaleTimeString(), type: 'ERROR', message: `Decryption failed.` });
+          }
+      } catch (e: any) {
+          setDecryptedMessages(prev => ({ ...prev, [msg.id]: { status: 'error' } }));
+          addLog({ id: Date.now().toString(), timestamp: new Date().toLocaleTimeString(), type: 'ERROR', message: `Decryption failed: ${e.message}` });
+      }
+  };
+
+  const abortControllerRef = useRef<AbortController | null>(null);  const containerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const initialLoadRef = useRef<boolean>(true);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
@@ -61,12 +105,14 @@ const VoidChat: React.FC<VoidChatProps> = ({ web3, viewAddress, lauArea, lauAddr
   const inSync = viewAddress.toLowerCase() === currentPhysArea.toLowerCase();
   const isVoid = viewAddress.toLowerCase() === ADDRESSES.VOID.toLowerCase();
 
+  const scanTarget = isVoid ? SHIO_GLOBAL : viewAddress;
+
   const handleScroll = () => {
       if (!containerRef.current) return;
       const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
       
       if (!initialLoadRef.current && segments.length > 0) {
-          localStorage.setItem(`scroll_${viewAddress}`, scrollTop.toString());
+          localStorage.setItem(`scroll_${scanTarget}`, scrollTop.toString());
       }
       
       const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
@@ -78,7 +124,7 @@ const VoidChat: React.FC<VoidChatProps> = ({ web3, viewAddress, lauArea, lauAddr
       
       if (initialLoadRef.current && segments.length > 0) {
           // Immediately set scroll based on stored value or bottom
-          const savedScroll = localStorage.getItem(`scroll_${viewAddress}`);
+          const savedScroll = localStorage.getItem(`scroll_${scanTarget}`);
           
           const applyScroll = () => {
               if (!containerRef.current) return;
@@ -173,8 +219,9 @@ const VoidChat: React.FC<VoidChatProps> = ({ web3, viewAddress, lauArea, lauAddr
   };
 
   const rebuildSegments = async () => {
-      const savedMsgs = await Persistence.getMessages(viewAddress, 10000); 
-      const meta = await Persistence.getChannelMeta(viewAddress);
+      // Fetch up to 200,000 logs so we don't truncate older messages
+      const savedMsgs = await Persistence.getMessages(scanTarget, 200000); 
+      const meta = await Persistence.getChannelMeta(scanTarget);
       
       const ranges = meta?.scannedRanges || [];
       ranges.sort((a, b) => a.start - b.start);
@@ -230,9 +277,23 @@ const VoidChat: React.FC<VoidChatProps> = ({ web3, viewAddress, lauArea, lauAddr
       if (onChunkLoaded) onChunkLoaded();
   };
   useEffect(() => {
+      return () => {
+          if (abortControllerRef.current) {
+              abortControllerRef.current.abort();
+          }
+      };
+  }, []);
+
+  useEffect(() => {
     if (!web3 || !viewAddress) return;
     initialLoadRef.current = true;
     setSegments([]);
+
+    if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
 
     const init = async () => {
         await rebuildSegments();
@@ -251,16 +312,22 @@ const VoidChat: React.FC<VoidChatProps> = ({ web3, viewAddress, lauArea, lauAddr
 
         const currentBlock = await web3.getProvider().getBlockNumber();
         const startTarget = Math.max(GENESIS_BLOCK, currentBlock - INITIAL_SCAN_DEPTH);
-        const meta = await Persistence.getChannelMeta(viewAddress);
+        const meta = await Persistence.getChannelMeta(scanTarget);
         const ranges = meta?.scannedRanges || [];
 
         const hasRecentHistory = ranges.some(r => r.end >= currentBlock - 100 && r.start <= startTarget + 500);
 
         if (!hasRecentHistory) {
-             await performSmartInitScan(startTarget, currentBlock, ranges);
+             await performSmartInitScan(startTarget, currentBlock, ranges, signal);
         }
     };
     init();
+
+    return () => {
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+        }
+    };
   }, [web3, viewAddress, isVoid]); 
 
   useEffect(() => {
@@ -269,19 +336,27 @@ const VoidChat: React.FC<VoidChatProps> = ({ web3, viewAddress, lauArea, lauAddr
       }
   }, [refreshTrigger]);
 
-  const performSmartInitScan = async (targetStart: number, currentBlock: number, existingRanges: any[]) => {
+  const performSmartInitScan = async (targetStart: number, currentBlock: number, existingRanges: any[], signal: AbortSignal) => {
       let cursor = currentBlock;
-      while (cursor > targetStart) {
+      while (cursor > targetStart && !signal.aborted) {
           const hitRange = existingRanges.find(r => cursor >= r.start && cursor <= r.end);
           if (hitRange) {
               cursor = hitRange.start - 1; 
               break; 
           }
           const chunkStart = Math.max(targetStart, cursor - 10000); 
-          await fetchChunk(chunkStart, cursor);
+          
+          try {
+              await fetchChunk(chunkStart, cursor, signal);
+          } catch (e: any) {
+              if (e.message === "Aborted") break;
+          }
+          
           await rebuildSegments();
           cursor = chunkStart - 1;
-          await new Promise(r => setTimeout(r, 50)); 
+          if (!signal.aborted) {
+              await new Promise(r => setTimeout(r, 50)); 
+          }
       }
   };
 
@@ -337,18 +412,17 @@ const VoidChat: React.FC<VoidChatProps> = ({ web3, viewAddress, lauArea, lauAddr
                 message: content,
                 timestamp: Date.now(), 
                 blockNumber: log.blockNumber,
-                isMe: false 
-              };
-           } catch(e) { 
+                isMe: soulId === mySoulIdStr
+               };           } catch(e) { 
                console.warn("Log Parse Error", e);
                return null; 
            }
         }).filter((m): m is ChatMessage => m !== null);
 
         if (newMsgs.length > 0) {
-            await Persistence.saveMessages(newMsgs, viewAddress);
+            await Persistence.saveMessages(newMsgs, scanTarget);
         }
-        await Persistence.updateScannedRange(viewAddress, fromBlock, toBlock);
+        await Persistence.updateScannedRange(scanTarget, fromBlock, toBlock);
 
       } catch (e: any) {
           if (e.message !== "Aborted") console.warn("Scan error", e);
@@ -412,7 +486,7 @@ const VoidChat: React.FC<VoidChatProps> = ({ web3, viewAddress, lauArea, lauAddr
 
       const poll = async () => {
           const currentBlock = await web3.getProvider().getBlockNumber();
-          const meta = await Persistence.getChannelMeta(viewAddress);
+          const meta = await Persistence.getChannelMeta(scanTarget);
           
           let startScan = currentBlock - 100; 
           if (meta && meta.scannedRanges.length > 0) {
@@ -572,9 +646,13 @@ const VoidChat: React.FC<VoidChatProps> = ({ web3, viewAddress, lauArea, lauAddr
                     for (let i = 0; i < soulId.length; i++) hash = soulId.charCodeAt(i) + ((hash << 5) - hash);
                     const h1 = Math.abs(hash) % 360;
                     const primary = `hsl(${h1}, 75%, 60%)`;
+                    
+                    const isPGP = msg.content.includes('-----BEGIN PGP MESSAGE-----');
+                    const decryptState = decryptedMessages[msg.id];
+                    const displayContent = decryptState?.status === 'decrypted' && decryptState.content ? decryptState.content : msg.content;
 
                     return (
-                        <div key={msg.id} className={`flex gap-3 max-w-[95%] items-start ${msg.isMe ? 'ml-auto flex-row-reverse' : 'mr-auto'}`}>
+                        <div key={msg.id} className="flex gap-3 max-w-[95%] items-start">
                             {/* AVATAR COLUMN */}
                             <button 
                                 onClick={() => onViewIdentity && onViewIdentity(soulId)}
@@ -585,7 +663,7 @@ const VoidChat: React.FC<VoidChatProps> = ({ web3, viewAddress, lauArea, lauAddr
                             </button>
 
                             {/* CONTENT COLUMN */}
-                            <div className={`flex flex-col ${msg.isMe ? 'items-end' : 'items-start'}`}>
+                            <div className="flex flex-col items-start w-full">
                                 <div className="flex items-baseline gap-2 mb-0.5">
                                     <span 
                                         className="font-bold text-xs tracking-wide" 
@@ -604,13 +682,35 @@ const VoidChat: React.FC<VoidChatProps> = ({ web3, viewAddress, lauArea, lauAddr
                                         >
                                             #TX
                                         </button>
+                                        {isPGP && (
+                                            <span className="text-[9px] text-dys-cyan tracking-widest font-bold">
+                                                [ENCRYPTED]
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
-                                <div className={`px-4 py-2 border border-dys-border ${msg.isMe ? 'bg-dys-green/5 border-dys-green/30' : 'bg-dys-panel/80'}`}>
-                                    <p className="font-mono text-sm whitespace-pre-wrap leading-relaxed text-gray-200 break-words max-w-[600px]">
-                                        {msg.content}
+                                <div className={`px-4 py-2 border border-dys-border break-words max-w-full ${msg.isMe ? 'bg-dys-cyan/5 border-dys-cyan/30' : 'bg-dys-panel/80'}`}>
+                                    <p className={`font-mono text-sm whitespace-pre-wrap leading-relaxed ${decryptState?.status === 'decrypted' ? 'text-dys-cyan' : 'text-gray-200'}`}>
+                                        {displayContent}
                                     </p>
                                 </div>
+                                {isPGP && (
+                                    <div className="flex gap-2 mt-1">
+                                        {(!decryptState || decryptState.status === 'ciphertext') ? (
+                                            <button onClick={() => handleDecrypt(msg)} className="text-[9px] underline text-gray-500 hover:text-white">
+                                                ATTEMPT DECRYPTION
+                                            </button>
+                                        ) : decryptState.status === 'error' ? (
+                                            <button onClick={() => handleDecrypt(msg)} className="text-[9px] underline text-dys-red hover:text-white">
+                                                RETRY DECRYPTION
+                                            </button>
+                                        ) : (
+                                            <button onClick={() => setDecryptedMessages(prev => ({ ...prev, [msg.id]: { status: 'ciphertext' } }))} className="text-[9px] underline text-dys-cyan hover:text-white">
+                                                SHOW CIPHERTEXT
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     );

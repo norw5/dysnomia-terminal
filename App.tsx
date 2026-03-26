@@ -34,13 +34,14 @@ const App: React.FC = () => {
   const [web3, setWeb3] = useState<Web3Service | null>(null);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [showNavAI, setShowNavAI] = useState(false);
-  const [showLogs, setShowLogs] = useState(true);
+  const [showLogs, setShowLogs] = useState(() => typeof window !== 'undefined' ? window.innerWidth >= 768 : true);
   
   const [aiKey, setAiKey] = useState('');
   const [aiModel, setAiModel] = useState('gemini-2.5-flash-preview-09-2025');
   const [activeRpc, setActiveRpc] = useState<string>(DEFAULT_RPC_URL);
   const [registrySearch, setRegistrySearch] = useState('');
   const [pendingInteraction, setPendingInteraction] = useState<ContractInteractionRequest | null>(null);
+  const [mobileCloseCounters, setMobileCloseCounters] = useState(0);
 
   const [blockNumber, setBlockNumber] = useState<number>(0);
   const [gasPrice, setGasPrice] = useState<string>('0');
@@ -455,7 +456,7 @@ const App: React.FC = () => {
           case AppView.NAVIGATION:
               return <QingMap web3={web3} addLog={addLog} onSelectSector={handleSelectSector} mapSync={user.mapSync} />;
           case AppView.COMMS:
-              return <CommsDeck web3={web3} user={user} addLog={addLog} setUser={setUser} onViewIdentity={handleViewIdentity} />;
+              return <CommsDeck web3={web3} user={user} addLog={addLog} setUser={setUser} onViewIdentity={handleViewIdentity} closeSidebarTrigger={mobileCloseCounters} onSidebarOpened={() => { if (window.innerWidth < 768) { setShowNavAI(false); setShowLogs(false); } }} />;
           case AppView.OPERATIONS:
               return <OperationsDeck web3={web3} user={user} addLog={addLog} onNavigate={handleViewOnMap} />;
           case AppView.MARKET:
@@ -532,8 +533,20 @@ const App: React.FC = () => {
                 <span className="text-dys-amber">{Number(user.balance).toFixed(2)} PLS</span>
             </div>
              <div className="flex gap-2">
-                <button onClick={() => setShowNavAI(!showNavAI)} className={`border px-3 py-1 font-bold transition-all hover:bg-white/10 ${showNavAI ? 'border-dys-amber text-dys-amber' : 'border-gray-800 text-gray-700'}`}>AI_CORE</button>
-                 <button onClick={() => setShowLogs(!showLogs)} className={`border px-3 py-1 font-bold transition-all hover:bg-white/10 ${showLogs ? 'border-dys-cyan text-dys-cyan' : 'border-gray-800 text-gray-700'}`}>LOGS</button>
+                <button onClick={() => {
+                    if (!showNavAI && window.innerWidth < 768) {
+                        setShowLogs(false);
+                        setMobileCloseCounters(c => c + 1);
+                    }
+                    setShowNavAI(!showNavAI);
+                }} className={`border px-3 py-1 font-bold transition-all hover:bg-white/10 ${showNavAI ? 'border-dys-amber text-dys-amber' : 'border-gray-800 text-gray-700'}`}>AI_CORE</button>
+                 <button onClick={() => {
+                     if (!showLogs && window.innerWidth < 768) {
+                         setShowNavAI(false);
+                         setMobileCloseCounters(c => c + 1);
+                     }
+                     setShowLogs(!showLogs);
+                 }} className={`border px-3 py-1 font-bold transition-all hover:bg-white/10 ${showLogs ? 'border-dys-cyan text-dys-cyan' : 'border-gray-800 text-gray-700'}`}>LOGS</button>
              </div>
         </div>
       </header>
@@ -573,17 +586,17 @@ const App: React.FC = () => {
       <div className="flex-1 flex overflow-hidden relative border-l-4 border-r-4 border-dys-black">
           <main className="flex-1 flex flex-col min-w-0 bg-[#000] relative">
              <div className="absolute inset-0 pointer-events-none z-0 opacity-5 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_2px,3px_100%]"></div>
-             <div className="flex-1 overflow-auto z-10 flex flex-col">
+             <div className="flex-1 overflow-hidden z-10 flex flex-col">
                 {renderContent()}
              </div>
           </main>
           {showNavAI && (
-              <aside className="w-80 md:w-96 border-l-2 border-dys-amber/20 z-40 bg-[#050505]">
+              <aside className="absolute right-0 top-0 bottom-0 md:relative w-full md:w-80 md:w-96 border-l-2 border-dys-amber/20 z-40 bg-[#050505]">
                   <NavAI userContext={user} addLog={addLog} currentView={view} onNavigateToContract={handleAiDeepLink} activeModel={aiModel} />
               </aside>
           )}
           {showLogs && (
-              <aside className="w-72 border-l border-dys-cyan/20 z-30 bg-[#050505] flex flex-col">
+              <aside className="absolute right-0 top-0 bottom-0 md:relative w-full md:w-72 border-l border-dys-cyan/20 z-30 bg-[#050505] flex flex-col">
                   <div className="p-2 border-b border-dys-cyan/20 text-xs font-bold text-dys-cyan tracking-widest bg-dys-cyan/5">SYSTEM_LOGS</div>
                   <TerminalLog logs={logs} />
               </aside>

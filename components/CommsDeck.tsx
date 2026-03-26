@@ -18,9 +18,11 @@ interface CommsDeckProps {
   addLog: (entry: LogEntry) => void;
   setUser: React.Dispatch<React.SetStateAction<UserContext>>;
   onViewIdentity?: (id: string) => void;
+  closeSidebarTrigger?: number;
+  onSidebarOpened?: () => void;
 }
 
-const CommsDeck: React.FC<CommsDeckProps> = ({ user, web3, addLog, setUser, onViewIdentity }) => {
+const CommsDeck: React.FC<CommsDeckProps> = ({ user, web3, addLog, setUser, onViewIdentity, closeSidebarTrigger, onSidebarOpened }) => {
   const [channels, setChannels] = useState<SectorData[]>([
       { name: 'THE VOID', symbol: 'VOID', address: ADDRESSES.VOID, isSystem: true, integrative: ZeroAddress, waat: "0" }
   ]);
@@ -53,6 +55,12 @@ const CommsDeck: React.FC<CommsDeckProps> = ({ user, web3, addLog, setUser, onVi
   const [coverCharge, setCoverCharge] = useState<bigint>(0n);
   const [assetSymbol, setAssetSymbol] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+      if (closeSidebarTrigger && closeSidebarTrigger > 0 && window.innerWidth < 768) {
+          setSelectedSidebarUser(null);
+      }
+  }, [closeSidebarTrigger]);
 
   // Load Channels (Auto-refresh on sync update)
   useEffect(() => {
@@ -216,9 +224,11 @@ const CommsDeck: React.FC<CommsDeckProps> = ({ user, web3, addLog, setUser, onVi
   );
 
   const handleViewIdentityLocal = useCallback((id: string) => {
-      console.log("test")
       setSelectedSidebarUser(id);
-  }, []);
+      if (onSidebarOpened && window.innerWidth < 768) {
+          onSidebarOpened();
+      }
+  }, [onSidebarOpened]);
 
   useEffect(() => {
       if (!selectedSidebarUser || !web3) {
@@ -273,10 +283,10 @@ const CommsDeck: React.FC<CommsDeckProps> = ({ user, web3, addLog, setUser, onVi
   }, [selectedSidebarUser, web3]);
 
   return (
-    <div className="h-full flex flex-col md:flex-row bg-dys-black border-l-4 border-r-4 border-dys-black">
+    <div className="h-full flex flex-col md:flex-row bg-dys-black border-l-4 border-r-4 border-dys-black overflow-hidden min-h-0">
         
         {/* LEFT: CHANNEL LIST */}
-        <div className="w-full md:w-64 bg-dys-panel border-r border-dys-border flex flex-col">
+        <div className="w-full md:w-64 shrink-0 h-[30vh] md:h-full bg-dys-panel border-r border-dys-border flex flex-col">
             <div className="p-3 border-b border-dys-border bg-black/50">
                 <div className="flex w-full mb-3 border border-dys-border">
                     <button 
@@ -373,7 +383,7 @@ const CommsDeck: React.FC<CommsDeckProps> = ({ user, web3, addLog, setUser, onVi
         </div>
 
         {/* RIGHT: CHAT & ACTIONS */}
-        <div className="flex-1 flex flex-col min-w-0 bg-black/50">
+        <div className="flex-1 flex flex-col min-w-0 min-h-0 bg-black/50 overflow-hidden">
             {/* Header */}
             <div className="p-3 border-b border-dys-border bg-dys-panel flex justify-between items-center shrink-0">
                 <div>
@@ -413,7 +423,7 @@ const CommsDeck: React.FC<CommsDeckProps> = ({ user, web3, addLog, setUser, onVi
 
             {/* Chat Area */}
             <div className="flex-1 relative overflow-hidden flex">
-                <div className="flex-1 relative">
+                <div className="flex-1 relative flex flex-col min-w-0">
                     {showKeyManager ? (
                         <KeyManager
                             web3={web3!}
@@ -448,9 +458,9 @@ const CommsDeck: React.FC<CommsDeckProps> = ({ user, web3, addLog, setUser, onVi
                     )}
                 </div>
 
-                {/* Inline User Sidebar - Now Absolute to prevent layout shifting and overlap issues */}
+                {/* Inline User Sidebar - Flex layout to prevent overlap, full width absolute on mobile */}
                 {selectedSidebarUser && (
-                    <div className="absolute right-0 top-0 bottom-0 w-64 bg-dys-panel border-l border-dys-border flex flex-col z-50 animate-fade-in shadow-2xl">
+                    <div className="absolute right-0 top-0 bottom-0 md:relative w-full md:w-64 shrink-0 bg-dys-panel border-l border-dys-border flex flex-col z-[60] md:z-20 animate-fade-in shadow-2xl">
                         <div className="p-4 border-b border-dys-border flex justify-between items-center bg-black/50">
                             <div className="font-bold text-dys-cyan text-[10px] tracking-widest">USER_PROFILE</div>
                             <button onClick={() => setSelectedSidebarUser(null)} className="text-gray-500 hover:text-white transition-colors">✕</button>

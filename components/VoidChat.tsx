@@ -663,10 +663,10 @@ const VoidChat: React.FC<VoidChatProps> = ({ web3, viewAddress, lauArea, lauAddr
                             </button>
 
                             {/* CONTENT COLUMN */}
-                            <div className="flex flex-col items-start w-full">
-                                <div className="flex items-baseline gap-2 mb-0.5">
+                            <div className="flex flex-col items-start w-full min-w-0">
+                                <div className="flex flex-wrap items-baseline gap-2 mb-0.5">
                                     <span 
-                                        className="font-bold text-xs tracking-wide" 
+                                        className="font-bold text-xs tracking-wide truncate max-w-[120px]" 
                                         style={{ color: primary, textShadow: `0 0 10px ${primary}40` }}
                                     >
                                         {displayName}
@@ -689,8 +689,8 @@ const VoidChat: React.FC<VoidChatProps> = ({ web3, viewAddress, lauArea, lauAddr
                                         )}
                                     </div>
                                 </div>
-                                <div className={`px-4 py-2 border border-dys-border break-words max-w-full ${msg.isMe ? 'bg-dys-cyan/5 border-dys-cyan/30' : 'bg-dys-panel/80'}`}>
-                                    <p className={`font-mono text-sm whitespace-pre-wrap leading-relaxed ${decryptState?.status === 'decrypted' ? 'text-dys-cyan' : 'text-gray-200'}`}>
+                                <div className={`px-4 py-2 border border-dys-border break-words w-full ${msg.isMe ? 'bg-dys-cyan/5 border-dys-cyan/30' : 'bg-dys-panel/80'}`}>
+                                    <p className={`font-mono text-sm whitespace-pre-wrap leading-relaxed truncate whitespace-normal ${decryptState?.status === 'decrypted' ? 'text-dys-cyan' : 'text-gray-200'}`}>
                                         {displayContent}
                                     </p>
                                 </div>

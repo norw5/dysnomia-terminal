@@ -92,3 +92,58 @@ export interface Contact {
     username: string;
     pubKey?: string;
 }
+
+// ---------------------------------------------------------------------------
+// ATROPA TYPES
+// ---------------------------------------------------------------------------
+
+export enum AtropaView {
+    TREASURY_DECK = 'TREASURY_DECK',
+    MINT_LAB = 'MINT_LAB',
+    SPINE_MANAGER = 'SPINE_MANAGER',
+    GOVERNANCE = 'GOVERNANCE',
+    TOKEN_EXPLORER = 'TOKEN_EXPLORER',
+}
+
+export interface TreasuryToken {
+    address: string;
+    name: string;
+    symbol: string;
+    minterType: 'CORE' | 'V1' | 'V2' | 'V3' | 'V4';
+    coreSubCategory?: 'INFRASTRUCTURE' | 'NATIVE' | 'GOVERNANCE' | 'ECONOMY';
+    isVerified?: boolean;
+    minterAddress: string;
+    parentAddress: string;
+    parentName?: string;
+    parentSymbol?: string;
+    debenture: boolean;
+    totalSupply: string;
+    creatorAddress?: string;
+    userBalance?: string;
+    userHu?: number;
+    multiplier?: string;
+    initialMint?: string;
+    logoUrl?: string;
+    
+    // Feature: Progress/Parity Hydration
+    isHydrated?: boolean;
+    parityRatio?: string;
+    parityStatus?: 'UNDER' | 'OVER' | 'PARITY' | 'UNKNOWN';
+    parityDeviation?: number;
+    parityMultiple?: number;
+}
+
+export interface FederalSpine {
+    id: string;
+    name: string;
+    tokens: TreasuryToken[];
+    rootAddress: string;
+    tipAddress: string;
+}
+
+export interface AtropaUserContext {
+    crowsBalance: string;
+    canVote: boolean; // crowsBalance >= 25
+    importedTokens: string[]; // User-imported token addresses
+    importedSpines: FederalSpine[];
+}

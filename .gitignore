@@ -153,3 +153,6 @@ vite.config.ts.timestamp-*
 
 # docs
 docs/
+
+# scripts
+scripts/

@@ -97,6 +97,9 @@ export const ADDRESSES: Record<string, string> = {
   ATROPA: "0x7a20189B297343CF26d8548764b04891f37F3414", 
   AFFECTION: "0x24F0154C1dCe548AdF15da2098Fdd8B8A3B8151D",
   //CHATLOG_SHIO: "0x27242c1605e557224259b977755b46b29f032213" // Fomalhaute/ZHOU SHIO // This address seems to be wrong - keep it out for now
+  
+  // DEX
+  PULSEX_V2_ROUTER: "0x98bf93ebf5c380C0e6Ae8e192A7e2AE08edAcc02"
 };
 
 export const SHIO_GLOBAL = "SHIO_GLOBAL";
@@ -810,3 +813,117 @@ export const POWER_TOKENS = {
     FORNAX: "0x4Df51741F2926525A21bF63E4769bA70633D2792", // XIE Address (proxy)
     TETHYS: "0xCbAdd3C3957Bd9D6C036863CB053FEccf3D53338" // ZI Address (proxy)
 };
+
+// ---------------------------------------------------------------------------
+// ATROPA TREASURY SYSTEM
+// ---------------------------------------------------------------------------
+
+export const ATROPA_ADDRESSES = {
+    // Minter Factory Contracts
+    V1_TBILL_MINTER: '0xC7bDAc3e6Bb5eC37041A11328723e9927cCf430B',
+    V2_FEDERAL_MINTER: '0xc15c5F699Daf5e1135732139f05D2c05b3EF4354',
+    V3_INDEX_MINTER: '0x0c4F73328dFCECfbecf235C9F78A4494a7EC5ddC',
+    V4_PERSONAL_MINTER: '0x37a58Cb67514e31a2Fdb80B5E74c84a7bC4fD54B',
+    V5_BUREAU_MINTER: '0x48dF4e084Fd79B3683baBd536DeCe1c18cA3629B',
+
+    // Root / Parent Tokens  
+    FED: '0x1D177CB9EfEEa49A8B97ab1C72785a3A37ABc9Ff',
+    TREASURY_BILL: '0x463413c579D29c26D59a65312657DFCe30D545A1',
+    ATROPA_TOKEN: '0xCc78A0acDF847A2C1714D2A925bB4477df5d48a6',
+
+    // Governance & Utility
+    CROWS: '0x203e366A1821570b2f84Ff5ae8B3BdeB48Dc4fa1',
+    VOTE_CONTRACT: '0xa333561A5e08c002c083E3798DC8D504A262c9Ef',
+    ABI_DECODER: '0xa35c9B5e576BE2E0bA9cc7224B0941CC8acC4c9C',
+
+    // Creation Fee Token (WM / "MV")
+    WM: '0xA1BEe1daE9Af77dAC73aA0459eD63b4D93fC6d29',
+
+    // Math Library
+    ATROPA_MATH: '0xB680F0cc810317933F234f67EB6A9E923407f05D',
+};
+
+// Minter Factory ABI (NT contract)
+export const ATROPA_MINTER_ABI = [
+    'function TreasuryTokens(address) view returns (address)',
+    'function GetTreasuryTokenOwner(address ctx) view returns (address)',
+    'function New(string calldata Name, string calldata Symbol, uint256 InitialMint, address Parent) returns (address)',
+    'function Transfer(address ctx, address newOwner)',
+    'function FDIC() view returns (address)',
+    'function FED() view returns (address)',
+    'function POOR() view returns (address)',
+    'function NOTS() view returns (address)',
+    'function SKILLS() view returns (address)',
+    'function NINE() view returns (address)',
+    'function BUREAU() view returns (address)',
+    'function GetStandardTokenParent(address ctx) view returns (address)',
+];
+
+// Treasury Token ABI (TT contract — the tokens created by the minters)
+export const ATROPA_TT_ABI = [
+    // ERC20 standard
+    'function name() view returns (string)',
+    'function symbol() view returns (string)',
+    'function decimals() view returns (uint8)',
+    'function totalSupply() view returns (uint256)',
+    'function balanceOf(address) view returns (uint256)',
+    'function approve(address spender, uint256 amount) returns (bool)',
+    'function allowance(address owner, address spender) view returns (uint256)',
+    'function transfer(address to, uint256 amount) returns (bool)',
+    'function transferFrom(address from, address to, uint256 amount) returns (bool)',
+    // Treasury-specific reads
+    'function Parent() view returns (address)',
+    'function Debenture() view returns (bool)',
+    'function Creator() view returns (address)',
+    'function V2Minter() view returns (address)',
+    'function IndexMinter() view returns (address)',
+    'function PersonalMinter() view returns (address)',
+    'function _hu(address) view returns (uint8)',
+    'function _mintingKey() view returns (uint64)',
+    'function Multiplier(uint256 addition) view returns (uint256)',
+    'function Mint() view returns (uint256)',
+    // Treasury-specific writes
+    'function mint(uint256 amount)',
+    'function Claim(address Contract, uint256 Amount)',
+    'function publish()',
+    'function hu(address h, uint8 allow)',
+    'function withdraw(address token, uint256 value)',
+    'function ha()',
+    // Events
+    'event Published(address)',
+    'event Recovery(address Client, address Contract, uint256 Amount)',
+    'event Transfer(address indexed from, address indexed to, uint256 value)',
+    'event Approval(address indexed owner, address indexed spender, uint256 value)',
+];
+
+// V4 Personal Minter has a different Claim signature
+export const ATROPA_TT_V4_ABI = [
+    ...ATROPA_TT_ABI.filter(s => s !== 'function Claim(address Contract, uint256 Amount)'),
+    'function Claim(uint256 Amount)',
+];
+
+// CROWS Governance / Vote Contract ABI
+export const ATROPA_VOTE_ABI = [
+    'function getActiveProposals() view returns (uint256[])',
+    'function getProposal(uint256 proposalID) view returns (address token, address proposer, string logoURI, uint256 yesVotes, uint256 noVotes, bool active, bool approved)',
+    'function vote(uint256 proposalID, bool vote)',
+    'function upload(address token, bool hasImage)',
+];
+
+// ---------------------------------------------------------------------------
+// TOKEN REGISTRY — Re-exported from the canonical data source
+// ---------------------------------------------------------------------------
+// The old ATROPA_SYSTEM_TOKENS array has been replaced by the properly
+// categorized, deduplicated, and named registry in data/atropaTokenRegistry.ts
+export { 
+    type MinterType, 
+    type CoreSubCategory,
+    type AtropaTokenEntry,
+    ATROPA_TOKEN_REGISTRY, 
+    getRegistryTokensByMinter,
+    getCoreTokensBySubCategory,
+    isInRegistry,
+} from './data/atropaTokenRegistry';
+
+
+export const PULSEX_ROUTER_ABI = ["function getAmountsOut(uint amountIn, address[] memory path) public view returns (uint[] memory amounts)"];

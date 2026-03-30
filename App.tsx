@@ -1,12 +1,12 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { formatUnits, ZeroAddress } from 'ethers';
 import { Web3Service } from './services/web3Service';
-import { AppView, LogEntry, UserContext, ContractInteractionRequest } from './types';
+import { AppView, LogEntry, UserContext, ContractInteractionRequest, AtropaView, TreasuryToken } from './types';
 import { ADDRESSES, DEFAULT_RPC_URL, GEMINI_MODELS, MAP_ABI, QING_ABI, CHO_ABI, CHAN_ABI, LAU_ABI } from './constants';
 import { Persistence, SectorData } from './services/persistenceService';
 
-// Components
+// Dysnomia Components
 import TerminalLog from './components/TerminalLog';
 import NavAI from './components/NavAI';
 import ContractStudio from './components/ContractStudio';
@@ -17,7 +17,14 @@ import VoidChat from './components/VoidChat';
 import LauRegistry from './components/LauRegistry';
 import CommsDeck from './components/CommsDeck';
 import DataDeck from './components/DataDeck';
-import MarketDeck from './components/MarketDeck'; 
+import MarketDeck from './components/MarketDeck';
+
+// Atropa Components
+import AtropaDashboard from './components/atropa/AtropaDashboard';
+import MintLab from './components/atropa/MintLab';
+import SpineManager from './components/atropa/SpineManager';
+import Governance from './components/atropa/Governance';
+import TokenExplorer from './components/atropa/TokenExplorer'; 
 
 enum System {
     DYSNOMIA = 'DYSNOMIA',
@@ -31,6 +38,8 @@ const CHUNK_SIZE = 50000;
 const App: React.FC = () => {
   const [activeSystem, setActiveSystem] = useState<System>(System.DYSNOMIA);
   const [view, setView] = useState<AppView>(AppView.COMMAND_DECK);
+  const [atropaView, setAtropaView] = useState<AtropaView>(AtropaView.TREASURY_DECK);
+  const [atropaContext, setAtropaContext] = useState<any>(null);
   const [web3, setWeb3] = useState<Web3Service | null>(null);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [showNavAI, setShowNavAI] = useState(false);
@@ -74,10 +83,10 @@ const App: React.FC = () => {
 
   const generateId = () => `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-  const addLog = (entry: LogEntry) => {
+  const addLog = useCallback((entry: LogEntry) => {
     const safeEntry = { ...entry, id: entry.id || generateId() };
     setLogs(prev => [...prev, safeEntry].slice(-100)); 
-  };
+  }, []);
 
   const scanIdentity = async (forceAddress?: string) => {
       const targetAddress = forceAddress || user.address;
@@ -439,11 +448,15 @@ const App: React.FC = () => {
           );
       }
 
-      if(activeSystem !== System.DYSNOMIA) {
+      if(activeSystem === System.ATROPA) {
+          return renderAtropaContent();
+      }
+
+      if(activeSystem === System.BREZ) {
           return (
               <div className="flex flex-col items-center justify-center h-full text-dys-red font-mono border-2 border-dys-red/20 m-4">
                   <div className="text-6xl font-bold mb-4 opacity-50">⚠</div>
-                  <div className="text-xl font-bold mb-2">ACCESS DENIED</div>
+                  <div className="text-xl font-bold mb-2">BREZ — COMING SOON</div>
               </div>
           );
       }
@@ -467,6 +480,30 @@ const App: React.FC = () => {
               return <DataDeck web3={web3} user={user} addLog={addLog} />;
           default:
               return <div className="p-10 text-center font-mono text-dys-red">ERR: MODULE NOT FOUND</div>;
+      }
+  };
+
+  const handleAtropaNavigate = (targetView: AtropaView, context?: any) => {
+      setAtropaContext(context || null);
+      setAtropaView(targetView);
+  };
+
+  const renderAtropaContent = () => {
+      if(!web3) return <div className="p-10 text-green-400 animate-pulse font-mono">ATROPA KERNEL BOOTING...</div>;
+
+      switch(atropaView) {
+          case AtropaView.TREASURY_DECK:
+              return <AtropaDashboard web3={web3} user={user} addLog={addLog} onNavigate={handleAtropaNavigate} />;
+          case AtropaView.MINT_LAB:
+              return <MintLab web3={web3} user={user} addLog={addLog} onNavigate={handleAtropaNavigate} initialToken={atropaContext?.token} />;
+          case AtropaView.SPINE_MANAGER:
+              return <SpineManager web3={web3} user={user} addLog={addLog} onNavigate={handleAtropaNavigate} />;
+          case AtropaView.GOVERNANCE:
+              return <Governance web3={web3} user={user} addLog={addLog} onNavigate={handleAtropaNavigate} />;
+          case AtropaView.TOKEN_EXPLORER:
+              return <TokenExplorer web3={web3} user={user} addLog={addLog} onNavigate={handleAtropaNavigate} initialToken={atropaContext?.token} />;
+          default:
+              return <AtropaDashboard web3={web3} user={user} addLog={addLog} onNavigate={handleAtropaNavigate} />;
       }
   };
 
@@ -574,6 +611,35 @@ const App: React.FC = () => {
                             view === item.id 
                             ? 'border-dys-cyan text-dys-cyan bg-dys-cyan/10' 
                             : 'border-transparent text-gray-500 hover:text-gray-300'
+                        }`}
+                    >
+                        {item.label}
+                    </button>
+                ))}
+            </nav>
+        </div>
+      )}
+
+      {activeSystem === System.ATROPA && view !== AppView.SETTINGS && (
+        <div className="bg-[#0a0a0a] border-b border-green-900/30 py-2 px-6 flex items-center gap-2 text-xs shrink-0 overflow-x-auto">
+            <span className="text-green-400 font-bold mr-4 tracking-widest hidden md:block">MODULE // ATROPA</span>
+            <span className="text-gray-800 mr-2 hidden md:block">|</span>
+            
+            <nav className="flex gap-1">
+                {[
+                    { id: AtropaView.TREASURY_DECK, label: 'DASHBOARD' },
+                    { id: AtropaView.MINT_LAB, label: 'MINT_LAB' }, 
+                    { id: AtropaView.SPINE_MANAGER, label: 'SPINES' },
+                    { id: AtropaView.GOVERNANCE, label: 'GOVERNANCE' }, 
+                    { id: AtropaView.TOKEN_EXPLORER, label: 'EXPLORER' },
+                ].map(item => (
+                    <button
+                        key={item.id}
+                        onClick={() => { setAtropaContext(null); setAtropaView(item.id); }}
+                        className={`px-3 py-1 border transition-all whitespace-nowrap ${
+                            atropaView === item.id 
+                            ? 'border-green-400 text-green-400 bg-green-400/10' 
+                            : 'border-transparent text-gray-500 hover:text-green-400/70'
                         }`}
                     >
                         {item.label}
